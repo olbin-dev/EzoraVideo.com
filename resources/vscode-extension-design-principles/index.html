@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How VS Code Extensions Should Be Built</title>
+  <style>
+    :root { --bg:#f6f7f9; --paper:#fff; --text:#1f2933; --muted:#5b6573; --line:#dfe3e8; --code:#111827; --accent:#2457a7; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.8; }
+    article { max-width:900px; margin:40px auto; padding:64px 72px; background:var(--paper); box-shadow:0 10px 35px rgba(31,41,51,.08); border-radius:14px; }
+    h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.15; margin:0 0 14px; letter-spacing:-.04em; }
+    .subtitle { margin:0 0 48px; font-size:1.2rem; color:var(--muted); }
+    h2 { margin-top:56px; padding-top:18px; border-top:1px solid var(--line); font-size:1.75rem; line-height:1.3; letter-spacing:-.02em; }
+    h3 { margin-top:34px; font-size:1.25rem; line-height:1.4; }
+    p { margin:1.05em 0; }
+    ul,ol { padding-left:1.6em; }
+    li { margin:.35em 0; }
+    pre { overflow-x:auto; padding:18px 20px; border-radius:10px; background:var(--code); color:#f9fafb; line-height:1.55; font-size:.92rem; }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace; }
+    blockquote { margin:28px 0; padding:18px 24px; border-left:5px solid var(--accent); background:#f2f6fc; color:#243b5a; font-size:1.08rem; }
+    footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+    @media (max-width:760px) { article { margin:0; padding:34px 22px; border-radius:0; box-shadow:none; } }
+    @media print { body { background:#fff; } article { max-width:none; margin:0; padding:0; box-shadow:none; } }
+  </style>
+</head>
+<body>
+<article>
+<header>
+<h1>How VS Code Extensions Should Be Built</h1>
+<p class="subtitle">Design Principles for Preventing “It Worked Yesterday, but Suddenly Broke”</p>
+</header>
+
+<p>One day, a VS Code extension began reporting the following error:</p>
+<pre><code>Could not find ripgrep binary</code></pre>
+<p>Yet ripgrep was installed.</p>
+<p>It worked perfectly from the terminal:</p>
+<pre><code>which rg
+rg --version</code></pre>
+<p>Both commands completed successfully.</p>
+<p>Nevertheless, the extension continued to insist that the binary could not be found.</p>
+<p>The immediate cause turned out to be simple: the extension was searching for ripgrep in locations where it no longer existed.</p>
+<p>But the real lesson is not that adding one more search path fixed the problem.</p>
+<blockquote>Why was the extension designed so that a minor change in the host application’s internal directory structure could disable it completely?</blockquote>
+<p>This is not merely a Roo Code issue, nor is it limited to VS Code.</p>
+<p>The same class of failure can affect IDE extensions, Electron applications, browser extensions, command-line integrations, database plugins, enterprise add-ons, automation tools, and software that embeds or invokes external binaries.</p>
+<p>This incident provides a useful case study in how extensions should—and should not—be designed.</p>
+
+<h2>What Actually Happened</h2>
+<p>The extension depended on ripgrep, a high-performance text-search utility.</p>
+<p>VS Code itself bundles a copy of ripgrep for its own search functionality. Rather than shipping and managing its own copy, the extension attempted to locate and reuse the binary bundled inside VS Code.</p>
+<p>Its resolver searched paths resembling the following:</p>
+<pre><code>node_modules/@vscode/ripgrep/bin/
+node_modules/vscode-ripgrep/bin/
+node_modules.asar.unpacked/vscode-ripgrep/bin/
+node_modules.asar.unpacked/@vscode/ripgrep/bin/</code></pre>
+<p>However, in the installed version of VS Code, the actual binary was located under a newer package and platform-specific directory:</p>
+<pre><code>node_modules.asar.unpacked/
+  @vscode/
+    ripgrep-universal/
+      bin/
+        darwin-arm64/
+          rg</code></pre>
+<p>The binary existed. It was executable. It matched the operating system and CPU architecture. It produced a valid version response.</p>
+<p>The extension simply did not know where to look.</p>
+<p>The resolver therefore returned no path, eventually causing the extension to throw:</p>
+<pre><code>Could not find ripgrep binary</code></pre>
+<p>At first glance, this looks like a straightforward file-discovery failure. At the architectural level, however, it exposes a much deeper weakness.</p>
+
+<h2>The Fundamental Problem: Depending on Undocumented Internals</h2>
+<p>The most important failure was not the missing path.</p>
+<p>It was the extension’s dependence on VS Code’s private internal directory structure.</p>
+<p>Locations such as the following are not stable extension APIs:</p>
+<pre><code>appRoot/node_modules/
+node_modules.asar.unpacked/
+@vscode/ripgrep/
+@vscode/ripgrep-universal/</code></pre>
+<p>They are implementation details of the host application.</p>
+<p>Implementation details can change for many reasons: package restructuring, dependency replacement, Electron packaging changes, platform-specific bundling, security hardening, support for new CPU architectures, build-system changes, or startup-performance optimization.</p>
+<p>An extension developer may inspect the VS Code installation, notice that a usable executable is present, and decide to reuse it.</p>
+<p>That can work.</p>
+<p>But there is a critical distinction:</p>
+<blockquote>A resource being visible does not mean its location or availability is part of a supported contract.</blockquote>
+<p>This distinction is fundamental to extension development.</p>
+<p>The moment private implementation details are treated as public APIs, the extension inherits a dependency that the host application never agreed to preserve.</p>
+
+<h2>Public APIs and Observable Internals Are Not the Same Thing</h2>
+<p>A documented public API normally provides several expectations:</p>
+<ul><li>its intended use is documented;</li><li>compatibility is managed;</li><li>changes are announced or versioned;</li><li>supported behavior is defined;</li><li>consumers are explicitly permitted to depend on it.</li></ul>
+<p>An internal directory provides none of those guarantees.</p>
+<pre><code>The file happens to be here in this build.</code></pre>
+<p>That is not a durable interface.</p>
+<p>An extension that relies on such a location may work today, pass local testing, and appear completely stable. Then the host application is updated.</p>
+<p>The internal package name changes from:</p>
+<pre><code>@vscode/ripgrep</code></pre>
+<p>to:</p>
+<pre><code>@vscode/ripgrep-universal</code></pre>
+<p>The binary is moved under an architecture-specific directory:</p>
+<pre><code>bin/darwin-arm64/</code></pre>
+<p>The extension itself has not changed, yet it stops working.</p>
+<p>This is how software can break without anyone modifying its source code.</p>
+
+<h2>Software Does Not Operate in a Static Environment</h2>
+<p>A common misconception is that unchanged software should continue behaving identically.</p>
+<p>That is true only when its entire environment is also unchanged.</p>
+<p>An extension may remain frozen while the host application, operating system, Electron, Node.js, package layouts, filesystem permissions, CPU architectures, signing requirements, security policies, remote development environments, and container runtimes continue evolving.</p>
+<p>An archived extension is therefore not truly preserved.</p>
+<p>Its source code is static, but its compatibility is gradually decaying.</p>
+
+<h2>Who Owns the External Binary?</h2>
+<blockquote>Who is responsible for the external executable on which the extension depends?</blockquote>
+<h3>Model 1: The Extension Bundles Its Own Binary</h3>
+<p>The extension distributes the required executable as part of its package.</p>
+<p>It owns the version, supported platforms, CPU architectures, permissions, signing requirements, vulnerability updates, and distribution size.</p>
+<p>This creates additional maintenance work, but the responsibility is clear.</p>
+<h3>Model 2: The User Installs the Binary</h3>
+<p>The extension declares ripgrep as an external prerequisite:</p>
+<pre><code>ripgrep 14 or later must be available on PATH.</code></pre>
+<p>The resolver can invoke <code>rg --version</code> and validate the result.</p>
+<h3>Model 3: The Extension Reuses the Host Application’s Private Copy</h3>
+<p>This was effectively the design used in the incident.</p>
+<pre><code>VS Code already ships ripgrep, so the extension can reuse it.</code></pre>
+<p>This appears efficient, but the ownership model becomes dangerously ambiguous.</p>
+<blockquote>The extension does not manage the binary, but still assumes that it will remain available in a specific undocumented location.</blockquote>
+
+<h2>Borrowing Another Product’s Bundled Dependency Is Fragile</h2>
+<p>Reusing a binary already present in the host application can reduce download size and packaging complexity.</p>
+<p>But those benefits come with an architectural cost: the extension becomes coupled to the host’s private packaging decisions.</p>
+<blockquote>If you depend on an undocumented host resource, design the feature under the assumption that the resource will eventually move, change, or disappear.</blockquote>
+
+<h2>Binary Discovery Is a Dependency-Resolution Problem</h2>
+<pre><code>return candidateA
+    || candidateB
+    || candidateC
+    || candidateD</code></pre>
+<p>That may be adequate for a prototype. It is not adequate for a long-lived extension.</p>
+<ol><li>A path explicitly configured by the user</li><li>A binary bundled and managed by the extension</li><li>A path supplied through a supported host API</li><li>A validated binary found on the system PATH</li><li>Known compatibility paths for specific host versions</li><li>A structured diagnostic result explaining the failure</li></ol>
+<p>Undocumented host paths should be treated only as compatibility fallbacks.</p>
+
+<h2>Allow Users to Configure an Explicit Path</h2>
+<pre><code>{
+  "extension.ripgrepPath": "/opt/homebrew/bin/rg"
+}</code></pre>
+<p>This is more than a convenience feature. It is an operational escape hatch.</p>
+
+<h2>Why PATH Fallback Matters</h2>
+<p>In this incident, a working ripgrep binary already existed at:</p>
+<pre><code>/opt/homebrew/bin/rg</code></pre>
+<p>The extension ignored it because its resolver did not search the system PATH.</p>
+<pre><code>which rg</code></pre>
+<p>or:</p>
+<pre><code>spawn("rg", ["--version"])</code></pre>
+<p>PATH resolution must be validated, but ignoring it entirely removed an obvious recovery route.</p>
+
+<h2>“The File Exists” Is Not the Same as “The Binary Works”</h2>
+<p>A robust resolver should verify that the file exists, is executable, supports the current platform and architecture, can be launched, and satisfies the required version range.</p>
+<pre><code>rg --version</code></pre>
+<p>Existence is only the beginning of validation.</p>
+
+<h2>Error Messages Should Contain the Investigation Trail</h2>
+<pre><code>ripgrep resolution failed
+
+Extension:
+  Roo Code 3.54.0
+
+Host:
+  Visual Studio Code 1.130
+
+Platform:
+  darwin-arm64
+
+Checked host paths:
+  /Applications/.../@vscode/ripgrep/bin/rg
+  /Applications/.../vscode-ripgrep/bin/rg
+  /Applications/.../@vscode/ripgrep-universal/bin/darwin-arm64/rg
+
+PATH lookup:
+  /opt/homebrew/bin/rg
+
+Validation:
+  /opt/homebrew/bin/rg --version
+  exit code: 0
+  version: ripgrep 15.0.0</code></pre>
+<p>The quality of diagnostics often determines whether a problem takes five minutes or five days to resolve.</p>
+
+<h2>Do Not Collapse Every Failure into “Not Found”</h2>
+<pre><code>BinaryNotFound
+BinaryNotExecutable
+BinaryArchitectureMismatch
+BinaryVersionUnsupported
+BinaryLaunchFailed
+BinaryPathInvalid
+HostLayoutUnsupported</code></pre>
+<p>Each category implies a different remedy. Coarse error classification leads directly to incorrect troubleshooting advice.</p>
+
+<h2>Version Compatibility Must Be Explicit</h2>
+<ul><li>Minimum supported VS Code version</li><li>Known compatible and incompatible host versions</li><li>Supported operating systems</li><li>Supported CPU architectures</li><li>Expected external dependency versions</li></ul>
+<pre><code>Extension: 3.54.0
+VS Code: 1.130
+Platform: macOS arm64</code></pre>
+
+<h2>Archived Extensions Require a Compatibility Strategy</h2>
+<p>An archived extension should ideally be accompanied by a compatibility matrix, known host-version limitations, maintenance patches, migration guidance, reproducible build instructions, a documented dependency resolver, and a diagnostic command.</p>
+<p>Archiving code preserves its source. It does not preserve the runtime environment on which it depends.</p>
+
+<h2>Test the Integration Boundary, Not Just the Function</h2>
+<p>A compatibility matrix should include VS Code Stable, VS Code Insiders, macOS arm64, macOS x64, Windows x64, and Linux x64.</p>
+<p>The test should cover extension activation, binary resolution, binary execution, search operation, fallback behavior, and diagnostic output.</p>
+
+<h2>Why VS Code Insiders Testing Matters</h2>
+<pre><code>On every pull request:
+  VS Code Stable on primary platforms
+
+On a scheduled basis:
+  VS Code Insiders
+
+Before release:
+  Windows x64
+  macOS arm64
+  macOS x64
+  Linux x64</code></pre>
+
+<h2>Isolate Hard-Coded Compatibility Logic</h2>
+<pre><code>RipgrepResolver
+BinaryLocator
+HostCompatibilityLayer
+ExternalToolManager</code></pre>
+<pre><code>const candidates = [
+  resolveConfiguredPath(),
+  resolveBundledBinary(),
+  resolveFromSupportedHostApi(),
+  resolveFromPath(),
+  resolveKnownHostLayouts()
+]</code></pre>
+
+<h2>Avoid Stale Resolution Caches</h2>
+<p>A cache should be associated with the host version, extension version, operating system, CPU architecture, resolved path, binary version, and validation timestamp.</p>
+
+<h2>Run Self-Diagnostics After Environment Changes</h2>
+<pre><code>Extension: Run Diagnostics</code></pre>
+<p>The report should include environment details, dependency resolution attempts, resolved executable paths, validation results, and known compatibility warnings.</p>
+
+<h2>Automatic Recovery Should Be Safe and Transparent</h2>
+<pre><code>A compatible system ripgrep installation was found at:
+
+/opt/homebrew/bin/rg
+
+Use this executable?</code></pre>
+<p>Automatic recovery should explain the change, be reversible, validate the selected binary, record the decision, and respect managed policies.</p>
+
+<h2>More Fallbacks Are Not Always Better</h2>
+<pre><code>Explicit user configuration     High trust
+Extension-bundled binary         High trust
+Supported host API               High trust
+System PATH                      Medium trust
+Known host-internal layout       Low trust
+Workspace-local executable       Untrusted by default
+Full-disk search                 Avoid</code></pre>
+<p>The extension should disclose which source was selected.</p>
+
+<h2>External Binary Discovery Is Also a Security Boundary</h2>
+<p>A secure resolver should avoid auto-executing workspace-local binaries, display the resolved absolute path, require consent for lower-trust sources, resolve symlinks, verify signatures or hashes where appropriate, restrict discovery to trusted directories, and integrate with VS Code Workspace Trust.</p>
+
+<h2>A More Robust Architecture</h2>
+<pre><code>RipgrepResolver
+  ├─ Check explicit user configuration
+  ├─ Check the extension-bundled binary
+  ├─ Query supported host capabilities
+  ├─ Search and validate the system PATH
+  ├─ Check known compatibility layouts
+  └─ Return a structured diagnostic result</code></pre>
+<pre><code>type BinaryResolution = {
+  path?: string
+  source?: "configured" | "bundled" | "host-api" | "path" | "host-internal"
+  version?: string
+  platform: string
+  architecture: string
+  attempts: ResolutionAttempt[]
+  error?: ResolutionError
+}</code></pre>
+
+<h2>Seven Principles for Building Durable Extensions</h2>
+<h3>Principle 1: Never Treat Host Internals as Public APIs</h3><p>A visible internal file is not a stable contract.</p>
+<h3>Principle 2: Make Dependency Ownership Explicit</h3><p>Decide whether the extension, the user, or a supported host API owns each external dependency.</p>
+<h3>Principle 3: Design Binary Discovery as Dependency Resolution</h3><p>Use ordered strategies, trust levels, validation, and structured failure information.</p>
+<h3>Principle 4: Validate Executability, Not Mere Existence</h3><p>A file is not a usable dependency until it has been launched and verified.</p>
+<h3>Principle 5: Include the Search Process in Diagnostics</h3><p>Record what was checked, what was found, what was rejected, and why.</p>
+<h3>Principle 6: Continuously Test the Host Integration Boundary</h3><p>Test real extension behavior across host versions, operating systems, and CPU architectures.</p>
+<h3>Principle 7: Assume Dependencies Will Change</h3><p>Provide explicit paths, fallbacks, compatibility layers, self-diagnostics, and recovery mechanisms.</p>
+
+<h2>A One-Line Fix Can Reveal an Architectural Problem</h2>
+<pre><code>@vscode/ripgrep-universal/bin/darwin-arm64/</code></pre>
+<p>The small patch exposed much larger issues: dependence on undocumented internals, unclear dependency ownership, insufficient fallback behavior, weak diagnostics, missing compatibility management, inadequate integration testing, architecture-specific assumptions, security risks in executable discovery, and the maintenance burden of archived extensions.</p>
+<p>The size of a code change does not indicate the depth of the design failure.</p>
+
+<h2>Code That Works Is Not the Same as Code That Keeps Working</h2>
+<p>Writing code that works in the current environment is relatively easy.</p>
+<p>Writing code that continues to work while its environment changes is much harder.</p>
+<p>Extension development is not simply the act of adding functionality to a host application.</p>
+<blockquote>It is the act of maintaining a contract with a system controlled by someone else.</blockquote>
+
+<h2>Conclusion</h2>
+<p>The immediate cause of this incident was a changed ripgrep path.</p>
+<p>The fundamental cause was that the extension treated a changeable, undocumented part of the host application as a stable dependency.</p>
+<p>When that assumption failed, the extension had no PATH fallback, no explicit-path configuration, no supported API-based resolution, insufficient diagnostics, no clear incompatibility warning, and no robust recovery mechanism.</p>
+<blockquote>When your software depends on something you do not control, design for change by providing detection, validation, fallback, diagnostics, and recovery.</blockquote>
+<p>An extension is not merely a small program running inside a larger application.</p>
+<p>It is software that must remain connected to an independently evolving system.</p>
+<p>That is why boundary design matters more than the convenience of a hard-coded path.</p>
+
+<footer>English edition — standalone HTML article.</footer>
+</article>
+</body>
+</html>
