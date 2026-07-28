@@ -19,7 +19,7 @@
 		"clean": "rimraf build .docusaurus .turbo"
 	},
 	"dependencies": {
-		"@docusaurus/core": "^3.9.2",
+		"@docusaurus/core": "^3.10.2",
 		"@docusaurus/plugin-client-redirects": "^3.9.2",
 		"@docusaurus/plugin-content-docs": "^3.9.2",
 		"@docusaurus/plugin-sitemap": "^3.9.2",
