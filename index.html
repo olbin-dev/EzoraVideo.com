@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="EzoraVideo is an independent, unofficial continuation of Roo Code.">
+  <title>EzoraVideo — An independent continuation of Roo Code</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #090b10;
+      --surface: #11151d;
+      --text: #f4f6fa;
+      --muted: #aab3c2;
+      --line: #293141;
+      --accent: #7dd3fc;
+      --accent-soft: rgba(125, 211, 252, .12);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 85% 5%, rgba(56, 189, 248, .13), transparent 30rem),
+        radial-gradient(circle at 10% 35%, rgba(99, 102, 241, .09), transparent 28rem),
+        var(--background);
+      color: var(--text);
+      font: 17px/1.75 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(860px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: clamp(72px, 12vw, 140px) 0 96px;
+    }
+    header { margin-bottom: 72px; }
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 22px;
+      padding: 6px 12px;
+      border: 1px solid rgba(125, 211, 252, .3);
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 24px;
+      font-size: clamp(3.4rem, 12vw, 7.2rem);
+      line-height: .92;
+      letter-spacing: -.07em;
+    }
+    .lead {
+      max-width: 690px;
+      margin: 0;
+      color: #d8dee9;
+      font-size: clamp(1.2rem, 3vw, 1.55rem);
+      line-height: 1.5;
+    }
+    section {
+      margin-top: 64px;
+      padding-top: 40px;
+      border-top: 1px solid var(--line);
+    }
+    h2 {
+      margin: 0 0 24px;
+      font-size: clamp(1.7rem, 4vw, 2.25rem);
+      letter-spacing: -.035em;
+    }
+    p { color: var(--muted); }
+    strong { color: var(--text); }
+    ul {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 28px 0;
+      padding: 0;
+      list-style: none;
+    }
+    li {
+      padding: 13px 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(17, 21, 29, .72);
+      color: #d8dee9;
+    }
+    li::before { content: "→"; margin-right: 10px; color: var(--accent); }
+    .origin {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 8px 20px;
+      margin: 28px 0;
+    }
+    .origin dt { color: var(--muted); }
+    .origin dd { margin: 0; font-weight: 650; }
+    .notice {
+      margin-top: 40px;
+      padding: 20px 22px;
+      border-left: 3px solid var(--accent);
+      background: var(--accent-soft);
+      color: #dcebf5;
+    }
+    a { color: var(--accent); }
+    footer {
+      margin-top: 72px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      color: #778193;
+      font-size: .9rem;
+    }
+    @media (max-width: 620px) {
+      ul { grid-template-columns: 1fr; }
+      .origin { grid-template-columns: 1fr; gap: 2px; }
+      .origin dd { margin-bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="eyebrow">Independent open-source continuation</span>
+      <h1>EzoraVideo</h1>
+      <p class="lead">EzoraVideo is an independent, unofficial continuation of Roo Code.</p>
+    </header>
+
+    <section aria-labelledby="about">
+      <h2 id="about">Continuing the work</h2>
+      <p>The project preserves the agent-oriented development experience, extensibility, custom modes, model flexibility, and MCP-based workflows that made Roo Code distinctive. It exists to continue maintenance, restore compatibility, resolve outstanding issues, and develop new capabilities after the original Roo Code repository entered read-only archival status.</p>
+      <p>EzoraVideo is based on Roo Code and retains the original project history, license notices, and contributor attribution where required.</p>
+      <p class="notice">This project is not affiliated with, endorsed by, or officially authorized by Roo Code, Inc. or the original Roo Code maintainers.</p>
+    </section>
+
+    <section aria-labelledby="position">
+      <h2 id="position">Project Position</h2>
+      <p>EzoraVideo is not intended to be a return to Cline or a generic reconstruction of an AI coding assistant.</p>
+      <p>Its goal is to continue and evolve the design direction established by Roo Code:</p>
+      <ul>
+        <li>agent-first software development</li>
+        <li>custom operational modes</li>
+        <li>model-provider flexibility</li>
+        <li>tool-assisted autonomous workflows</li>
+        <li>MCP integration</li>
+        <li>transparent and controllable execution</li>
+        <li>extensible developer workflows</li>
+      </ul>
+      <p>The initial releases will prioritize compatibility, stability, reproducible builds, and maintenance of the final public Roo Code codebase. Subsequent releases may introduce independently designed agent behavior, user interfaces, tools, and architectural components.</p>
+    </section>
+
+    <section aria-labelledby="origin">
+      <h2 id="origin">Origin</h2>
+      <dl class="origin">
+        <dt>Original project</dt><dd>Roo Code</dd>
+        <dt>Continuation project</dt><dd>EzoraVideo</dd>
+        <dt>Maintainer</dt><dd>olbin-dev</dd>
+      </dl>
+      <p>EzoraVideo is distributed under the applicable open-source licenses inherited from the upstream project. Original copyright and attribution notices remain the property of their respective holders.</p>
+    </section>
+
+    <footer>
+      <a href="https://github.com/olbin-dev/EzoraVideo.com">View the project on GitHub</a>
+    </footer>
+  </main>
+</body>
+</html>
